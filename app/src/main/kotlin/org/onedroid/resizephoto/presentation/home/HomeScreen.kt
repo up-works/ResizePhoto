@@ -231,6 +231,17 @@ fun HomeScreen(
         }
 
         Spacer(Modifier.height(16.dp))
+        
+        // Processing Time Info
+        if (state.processingTime > 0) {
+            Text(
+                text = "Processing Time: ${state.processingTime} ms",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.align(Alignment.End)
+            )
+            Spacer(Modifier.height(8.dp))
+        }
 
         // Resolution Info
         if (state.originalResolution != null) {
@@ -288,7 +299,7 @@ fun HomeScreen(
                 Spacer(Modifier.height(16.dp))
 
                 SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-                    val modes = ResizeMode.values()
+                    val modes = ResizeMode.entries.toTypedArray()
                     modes.forEachIndexed { index, mode ->
                         SegmentedButton(
                             selected = state.resizeMode == mode,
@@ -385,6 +396,21 @@ fun HomeScreen(
                             singleLine = true
                         )
                     }
+                }
+                
+                Spacer(Modifier.height(16.dp))
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(
+                        checked = state.useLanczos,
+                        onCheckedChange = { viewModel.setUseLanczos(it) }
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = "Use Lanczos Resampling (High Quality, Slower)",
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.clickable { viewModel.setUseLanczos(!state.useLanczos) }
+                    )
                 }
 
                 Spacer(Modifier.height(16.dp))

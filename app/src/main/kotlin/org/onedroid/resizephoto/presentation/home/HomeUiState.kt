@@ -18,7 +18,9 @@ data class HomeUiState(
     val targetHeight: String = "",
     val keepAspectRatio: Boolean = true,
     val resizeMode: ResizeMode = ResizeMode.PERCENTAGE,
-    val targetLongEdge: String = ""
+    val targetLongEdge: String = "",
+    val useLanczos: Boolean = false,
+    val processingTime: Long = 0L
 )
 
 enum class ResizeMode {

@@ -13,6 +13,7 @@ import org.onedroid.resizephoto.domain.usecase.GetExifUseCase
 import org.onedroid.resizephoto.domain.usecase.ResizeImageUseCase
 import java.io.File
 import kotlin.math.roundToInt
+import kotlin.system.measureTimeMillis
 
 class HomeViewModel(
     private val application: Application,
@@ -80,19 +81,26 @@ class HomeViewModel(
         }
     }
 
+    fun setUseLanczos(use: Boolean) {
+        _state.update {
+            it.copy(useLanczos = use)
+        }
+    }
+
     fun resizeImage() {
         val currentImage = _state.value.actualImage ?: return
         val originalResolution = _state.value.originalResolution ?: return
+        val useLanczos = _state.value.useLanczos
 
         when (_state.value.resizeMode) {
             ResizeMode.PERCENTAGE -> {
-                resizeImage(currentImage, (_state.value.resolution * 100).toInt())
+                resizeImage(currentImage, (_state.value.resolution * 100).toInt(), useLanczos)
             }
             ResizeMode.PIXELS -> {
                 val w = _state.value.targetWidth.toIntOrNull() ?: 0
                 val h = _state.value.targetHeight.toIntOrNull() ?: 0
                 if (w > 0 && h > 0) {
-                    resizeImage(currentImage, w, h)
+                    resizeImage(currentImage, w, h, useLanczos)
                 } else {
                     _state.update { it.copy(message = "Invalid dimensions") }
                 }
@@ -114,7 +122,7 @@ class HomeViewModel(
                         h = longEdge
                         w = (longEdge * aspectRatio).roundToInt()
                     }
-                    resizeImage(currentImage, w, h)
+                    resizeImage(currentImage, w, h, useLanczos)
                 } else {
                     _state.update { it.copy(message = "Invalid long edge size") }
                 }
@@ -162,17 +170,23 @@ class HomeViewModel(
                     // Reset inputs
                     targetWidth = resolution.first.toString(),
                     targetHeight = resolution.second.toString(),
-                    targetLongEdge = maxEdge.toString()
+                    targetLongEdge = maxEdge.toString(),
+                    processingTime = 0L
                 )
             }
         }
     }
 
-    private fun resizeImage(file: File, percentage: Int) {
+    private fun resizeImage(file: File, percentage: Int, useLanczos: Boolean) {
          viewModelScope.launch {
              try {
-                 val resized = resizeImageUseCase(file, percentage)
-                 handleResizedImage(file, resized)
+                 var resized: File? = null
+                 val time = measureTimeMillis {
+                     resized = resizeImageUseCase(file, percentage, useLanczos)
+                 }
+                 if (resized != null) {
+                    handleResizedImage(file, resized!!, time)
+                 }
              } catch (e: Exception) {
                  _state.update {
                      it.copy(message = "Error resizing image: ${e.message}")
@@ -181,11 +195,16 @@ class HomeViewModel(
          }
     }
 
-    private fun resizeImage(file: File, width: Int, height: Int) {
+    private fun resizeImage(file: File, width: Int, height: Int, useLanczos: Boolean) {
          viewModelScope.launch {
              try {
-                 val resized = resizeImageUseCase(file, width, height)
-                 handleResizedImage(file, resized)
+                 var resized: File? = null
+                 val time = measureTimeMillis {
+                    resized = resizeImageUseCase(file, width, height, useLanczos)
+                 }
+                 if (resized != null) {
+                     handleResizedImage(file, resized!!, time)
+                 }
              } catch (e: Exception) {
                  _state.update {
                      it.copy(message = "Error resizing image: ${e.message}")
@@ -194,7 +213,7 @@ class HomeViewModel(
          }
     }
 
-    private suspend fun handleResizedImage(original: File, resized: File) {
+    private suspend fun handleResizedImage(original: File, resized: File, processingTime: Long) {
          val resizedExif = getExifUseCase(resized)
          if (_state.value.keepExif) {
              getExifUseCase.copy(original, resized)
@@ -211,7 +230,8 @@ class HomeViewModel(
                  resizedImage = resized,
                  resizedExif = finalResizedExif,
                  resizedResolution = resizedResolution,
-                 resizedSize = resizedSize
+                 resizedSize = resizedSize,
+                 processingTime = processingTime
              )
          }
     }
