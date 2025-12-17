@@ -64,7 +64,7 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     implementation(libs.androidx.compose.material.icons.extended)
 
-    // Koin
+    //koin
     implementation(libs.koin.core)
     implementation(libs.koin.android)
     implementation(libs.koin.compose)
@@ -72,4 +72,7 @@ dependencies {
 
     //coil
     implementation(libs.coil.compose)
+
+    //stb_image_resize
+    implementation(project(":stb_image_resize"))
 }

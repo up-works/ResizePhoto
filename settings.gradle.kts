@@ -21,3 +21,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "ResizePhoto"
 include(":app")
+include(":stb_image_resize")

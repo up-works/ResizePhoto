@@ -1,15 +1,29 @@
 package org.onedroid.resizephoto.core.algorithm
 
 import android.graphics.Bitmap
-import android.graphics.Color
-import androidx.core.graphics.createBitmap
 import kotlin.math.abs
 import kotlin.math.floor
 import kotlin.math.roundToInt
 import kotlin.math.sin
 
-object LanczosResizer {
-    private const val A = 3
+/**
+ * High-quality image resizer using Lanczos-3 algorithm
+ * Best for downscaling images while preserving sharpness
+ *
+ * Usage:
+ * val resizer = LanczosResizer()
+ * val resizedBitmap = resizer.resize(originalBitmap, 800, 600)
+ *
+ * Developed by Tawhid Monowar
+ */
+
+
+class LanczosResizer {
+
+    companion object {
+        private const val A = 3 // Lanczos-3
+        private const val KERNEL_TAPS = 2 * A // support is [-A, A]
+    }
 
     private fun sinc(x: Double): Double {
         if (x == 0.0) return 1.0
@@ -23,102 +37,207 @@ object LanczosResizer {
         return sinc(x) * sinc(x / A)
     }
 
-    fun resize(src: Bitmap, dstW: Int, dstH: Int): Bitmap {
-        val tmp = resizeHorizontal(src, dstW)
-        val final = resizeVertical(tmp, dstH)
-        if (!tmp.isRecycled) tmp.recycle()
-        return final
+    private data class Weights(
+        val left: IntArray,
+        val weight: Array<FloatArray>, // [dstIndex][tap]
+        val wSum: FloatArray            // [dstIndex]
+    ) {
+        override fun equals(other: Any?): Boolean {
+            if (this === other) return true
+            if (javaClass != other?.javaClass) return false
+
+            other as Weights
+
+            if (!left.contentEquals(other.left)) return false
+            if (!weight.contentDeepEquals(other.weight)) return false
+            if (!wSum.contentEquals(other.wSum)) return false
+
+            return true
+        }
+
+        override fun hashCode(): Int {
+            var result = left.contentHashCode()
+            result = 31 * result + weight.contentDeepHashCode()
+            result = 31 * result + wSum.contentHashCode()
+            return result
+        }
     }
 
-    private fun resizeHorizontal(src: Bitmap, newW: Int): Bitmap {
+    private fun precomputeWeights(srcSize: Int, dstSize: Int): Weights {
+        val scale = srcSize.toDouble() / dstSize.toDouble()
+        val left = IntArray(dstSize)
+        val weight = Array(dstSize) { FloatArray(KERNEL_TAPS + 1) } // inclusive taps
+        val wSum = FloatArray(dstSize)
+
+        for (d in 0 until dstSize) {
+            val srcX = (d + 0.5) * scale - 0.5
+            val l = floor(srcX - A + 1).toInt()
+            left[d] = l
+
+            var sum = 0.0
+            for (t in 0..KERNEL_TAPS) {
+                val i = l + t
+                val w = kernel(srcX - i)
+                val wf = w.toFloat()
+                weight[d][t] = wf
+                sum += w
+            }
+            // Avoid divide-by-zero (shouldn’t happen, but safe)
+            wSum[d] = if (sum == 0.0) 1f else sum.toFloat()
+        }
+        return Weights(left, weight, wSum)
+    }
+
+    /**
+     * Memory-optimized two-pass Lanczos resize.
+     * - Horizontal: stream rows (no full-frame IntArray).
+     * - Vertical: ring-buffer only needed rows.
+     */
+    fun resize(src: Bitmap, dstW: Int, dstH: Int): Bitmap {
+        require(dstW > 0 && dstH > 0) { "Target dimensions must be positive" }
+        if (src.width == dstW && src.height == dstH) {
+            // If you truly need a new instance:
+            // return src.copy(src.config ?: Bitmap.Config.ARGB_8888, false)
+            // But for memory, return original:
+            return src
+        }
+
+        val tmp = resizeHorizontalStream(src, dstW) // creates new bitmap if width differs
+        val out = resizeVerticalRing(tmp, dstH)     // creates new bitmap if height differs
+
+        // Only recycle tmp if tmp was created by us and not reused as out
+        if (tmp !== src && tmp !== out && !tmp.isRecycled) tmp.recycle()
+
+        return out
+    }
+
+    private fun resizeHorizontalStream(src: Bitmap, newW: Int): Bitmap {
         val srcW = src.width
         val srcH = src.height
-        val input = IntArray(srcW * srcH)
-        src.getPixels(input, 0, srcW, 0, 0, srcW, srcH)
+        if (srcW == newW) return src
 
-        val output = IntArray(newW * srcH)
-        val scale = srcW.toDouble() / newW.toDouble()
+        val config = src.config ?: Bitmap.Config.ARGB_8888
+        val dst = Bitmap.createBitmap(newW, srcH, config)
+
+        val w = precomputeWeights(srcW, newW)
+
+        val inRow = IntArray(srcW)
+        val outRow = IntArray(newW)
 
         for (y in 0 until srcH) {
-            val srcOffset = y * srcW
-            val dstOffset = y * newW
+            src.getPixels(inRow, 0, srcW, 0, y, srcW, 1)
 
             for (x in 0 until newW) {
-                val srcX = (x + 0.5) * scale - 0.5
-                val left = floor(srcX - A + 1).toInt()
-                val right = floor(srcX + A).toInt()
+                val l = w.left[x]
+                val weights = w.weight[x]
+                val sumInv = 1f / w.wSum[x]
 
-                var wSum = 0.0
-                var rSum = 0.0
-                var gSum = 0.0
-                var bSum = 0.0
+                var aAcc = 0f
+                var rAcc = 0f
+                var gAcc = 0f
+                var bAcc = 0f
 
-                for (i in left..right) {
-                    val clamped = i.coerceIn(0, srcW - 1)
-                    val w = kernel(srcX - i)
-                    val c = input[srcOffset + clamped]
+                for (t in 0..KERNEL_TAPS) {
+                    val sx = (l + t).coerceIn(0, srcW - 1)
+                    val c = inRow[sx]
+                    val wf = weights[t]
 
-                    wSum += w
-                    rSum += Color.red(c) * w
-                    gSum += Color.green(c) * w
-                    bSum += Color.blue(c) * w
+                    val a = (c ushr 24) and 0xFF
+                    val r = (c ushr 16) and 0xFF
+                    val g = (c ushr 8) and 0xFF
+                    val b = (c) and 0xFF
+
+                    aAcc += a * wf
+                    rAcc += r * wf
+                    gAcc += g * wf
+                    bAcc += b * wf
                 }
 
-                val r = (rSum / wSum).roundToInt().coerceIn(0, 255)
-                val g = (gSum / wSum).roundToInt().coerceIn(0, 255)
-                val b = (bSum / wSum).roundToInt().coerceIn(0, 255)
+                val a = (aAcc * sumInv).roundToInt().coerceIn(0, 255)
+                val r = (rAcc * sumInv).roundToInt().coerceIn(0, 255)
+                val g = (gAcc * sumInv).roundToInt().coerceIn(0, 255)
+                val b = (bAcc * sumInv).roundToInt().coerceIn(0, 255)
 
-                output[dstOffset + x] = Color.rgb(r, g, b)
+                outRow[x] = (a shl 24) or (r shl 16) or (g shl 8) or b
             }
+
+            dst.setPixels(outRow, 0, newW, 0, y, newW, 1)
         }
 
-        return createBitmap(newW, srcH).apply {
-            setPixels(output, 0, newW, 0, 0, newW, srcH)
-        }
+        return dst
     }
 
-    private fun resizeVertical(src: Bitmap, newH: Int): Bitmap {
+    private fun resizeVerticalRing(src: Bitmap, newH: Int): Bitmap {
         val srcW = src.width
         val srcH = src.height
-        val input = IntArray(srcW * srcH)
-        src.getPixels(input, 0, srcW, 0, 0, srcW, srcH)
+        if (srcH == newH) return src
 
-        val output = IntArray(srcW * newH)
-        val scale = srcH.toDouble() / newH.toDouble()
+        val config = src.config ?: Bitmap.Config.ARGB_8888
+        val dst = Bitmap.createBitmap(srcW, newH, config)
 
-        for (x in 0 until srcW) {
-            for (y in 0 until newH) {
-                val srcY = (y + 0.5) * scale - 0.5
-                val top = floor(srcY - A + 1).toInt()
-                val bottom = floor(srcY + A).toInt()
+        val w = precomputeWeights(srcH, newH)
 
-                var wSum = 0.0
-                var rSum = 0.0
-                var gSum = 0.0
-                var bSum = 0.0
+        // Ring buffer of needed source rows
+        val ringSize = KERNEL_TAPS + 3
+        val ring = Array(ringSize) { IntArray(srcW) }
+        val ringRowIndex = IntArray(ringSize) { Int.MIN_VALUE }
 
-                for (i in top..bottom) {
-                    val clamped = i.coerceIn(0, srcH - 1)
-                    val w = kernel(srcY - i)
-                    val c = input[clamped * srcW + x]
+        fun getRow(row: Int): IntArray {
+            val r = row.coerceIn(0, srcH - 1)
+            // try find in ring
+            for (i in 0 until ringSize) {
+                if (ringRowIndex[i] == r) return ring[i]
+            }
+            // load into a slot (simple overwrite policy)
+            val slot = (r % ringSize + ringSize) % ringSize
+            if (ringRowIndex[slot] != r) {
+                src.getPixels(ring[slot], 0, srcW, 0, r, srcW, 1)
+                ringRowIndex[slot] = r
+            }
+            return ring[slot]
+        }
 
-                    wSum += w
-                    rSum += Color.red(c) * w
-                    gSum += Color.green(c) * w
-                    bSum += Color.blue(c) * w
+        val outRow = IntArray(srcW)
+
+        for (y in 0 until newH) {
+            val top = w.left[y]
+            val weights = w.weight[y]
+            val sumInv = 1f / w.wSum[y]
+
+            for (x in 0 until srcW) {
+                var aAcc = 0f
+                var rAcc = 0f
+                var gAcc = 0f
+                var bAcc = 0f
+
+                for (t in 0..KERNEL_TAPS) {
+                    val sy = top + t
+                    val row = getRow(sy)
+                    val c = row[x]
+                    val wf = weights[t]
+
+                    val a = (c ushr 24) and 0xFF
+                    val r = (c ushr 16) and 0xFF
+                    val g = (c ushr 8) and 0xFF
+                    val b = (c) and 0xFF
+
+                    aAcc += a * wf
+                    rAcc += r * wf
+                    gAcc += g * wf
+                    bAcc += b * wf
                 }
 
-                val idx = y * srcW + x
-                val r = (rSum / wSum).roundToInt().coerceIn(0, 255)
-                val g = (gSum / wSum).roundToInt().coerceIn(0, 255)
-                val b = (bSum / wSum).roundToInt().coerceIn(0, 255)
+                val a = (aAcc * sumInv).roundToInt().coerceIn(0, 255)
+                val r = (rAcc * sumInv).roundToInt().coerceIn(0, 255)
+                val g = (gAcc * sumInv).roundToInt().coerceIn(0, 255)
+                val b = (bAcc * sumInv).roundToInt().coerceIn(0, 255)
 
-                output[idx] = Color.rgb(r, g, b)
+                outRow[x] = (a shl 24) or (r shl 16) or (g shl 8) or b
             }
+
+            dst.setPixels(outRow, 0, srcW, 0, y, srcW, 1)
         }
 
-        return createBitmap(srcW, newH).apply {
-            setPixels(output, 0, srcW, 0, 0, srcW, newH)
-        }
+        return dst
     }
 }

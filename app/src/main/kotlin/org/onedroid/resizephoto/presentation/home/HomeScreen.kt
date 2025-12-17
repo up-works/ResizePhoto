@@ -29,7 +29,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.automirrored.rounded.CompareArrows
 import androidx.compose.material.icons.rounded.AddPhotoAlternate
 import androidx.compose.material.icons.rounded.AspectRatio
@@ -504,6 +503,54 @@ fun HomeScreen(
                         }
 
                         Spacer(Modifier.height(8.dp))
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(
+                                checked = state.algorithm == ResizeAlgorithm.STB_MITCHELL,
+                                onCheckedChange = { viewModel.setAlgorithm(ResizeAlgorithm.STB_MITCHELL) }
+                            )
+                            Column(Modifier.clickable { viewModel.setAlgorithm(ResizeAlgorithm.STB_MITCHELL) }) {
+                                Text(
+                                    text = "Mitchell (STB)",
+                                )
+                            }
+                        }
+
+                        Spacer(Modifier.height(8.dp))
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(
+                                checked = state.algorithm == ResizeAlgorithm.STB_CUBIC_BSPLINE,
+                                onCheckedChange = { viewModel.setAlgorithm(ResizeAlgorithm.STB_CUBIC_BSPLINE) }
+                            )
+                            Column(Modifier.clickable { viewModel.setAlgorithm(ResizeAlgorithm.STB_CUBIC_BSPLINE) }) {
+                                Text(
+                                    text = "Cubic B-Spline (STB)",
+                                )
+                            }
+                        }
+
+                        Spacer(Modifier.height(8.dp))
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(
+                                checked = state.algorithm == ResizeAlgorithm.STB_CATMULL_ROM,
+                                onCheckedChange = { viewModel.setAlgorithm(ResizeAlgorithm.STB_CATMULL_ROM) }
+                            )
+                            Column(Modifier.clickable { viewModel.setAlgorithm(ResizeAlgorithm.STB_CATMULL_ROM) }) {
+                                Text(
+                                    text = "Catmull-Rom (STB)",
+                                )
+                            }
+                        }
+
+                        Spacer(Modifier.height(8.dp))
+
+                        HorizontalDivider(
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(
+                                alpha = 0.5f
+                            )
+                        )
 
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Checkbox(

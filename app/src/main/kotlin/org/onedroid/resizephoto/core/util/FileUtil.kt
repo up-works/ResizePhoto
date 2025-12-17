@@ -55,7 +55,7 @@ object FileUtil {
         var extension = ""
         val i = fileName.lastIndexOf(".")
         if (i != -1) {
-            name = fileName.substring(0, i)
+            name = fileName.take(i)
             extension = fileName.substring(i)
         }
         return arrayOf(name, extension)
@@ -87,7 +87,7 @@ object FileUtil {
 
     private fun rename(file: File, newName: String): File {
         val newFile = File(file.parent, newName)
-        if (!newFile.equals(file)) {
+        if (newFile != file) {
             if (newFile.exists()) {
                 newFile.delete()
             }
