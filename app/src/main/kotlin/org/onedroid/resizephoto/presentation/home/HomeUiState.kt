@@ -20,7 +20,8 @@ data class HomeUiState(
     val resizeMode: ResizeMode = ResizeMode.PERCENTAGE,
     val targetLongEdge: String = "",
     val useLanczos: Boolean = false,
-    val processingTime: Long = 0L
+    val processingTime: Long = 0L,
+    val isResizing: Boolean = false
 )
 
 enum class ResizeMode {

@@ -9,41 +9,9 @@ import java.io.File
 import java.lang.reflect.Modifier
 
 class ExifRepositoryImpl : ExifRepository {
-    override suspend fun getExif(file: File): ExifData {
-        return withContext(Dispatchers.IO) {
-            val exif = ExifInterface(file.absolutePath)
-
-            val tags = getExifTags()
-
-            val result = tags.mapNotNull { tag ->
-                exif.getAttribute(tag)?.let { value ->
-                    tag to value
-                }
-            }.toMap()
-
-            ExifData(values = result)
-        }
-    }
-
-    override suspend fun copyExif(source: File, destination: File) {
-        withContext(Dispatchers.IO) {
-            val oldExif = ExifInterface(source.absolutePath)
-            val newExif = ExifInterface(destination.absolutePath)
-
-            val tags = getExifTags()
-
-            tags.forEach { tag ->
-                oldExif.getAttribute(tag)?.let { value ->
-                    newExif.setAttribute(tag, value)
-                }
-            }
-            newExif.saveAttributes()
-        }
-    }
-
-    private fun getExifTags(): List<String> {
+    private val exifTags by lazy {
         // Use reflection to get all public static String fields starting with "TAG_"
-        return ExifInterface::class.java.fields
+        ExifInterface::class.java.fields
             .filter { field ->
                 field.name.startsWith("TAG_") &&
                         field.type == String::class.java &&
@@ -59,5 +27,33 @@ class ExifRepositoryImpl : ExifRepository {
                 }
             }
             .distinct()
+    }
+
+    override suspend fun getExif(file: File): ExifData {
+        return withContext(Dispatchers.IO) {
+            val exif = ExifInterface(file.absolutePath)
+
+            val result = exifTags.mapNotNull { tag ->
+                exif.getAttribute(tag)?.let { value ->
+                    tag to value
+                }
+            }.toMap()
+
+            ExifData(values = result)
+        }
+    }
+
+    override suspend fun copyExif(source: File, destination: File) {
+        withContext(Dispatchers.IO) {
+            val oldExif = ExifInterface(source.absolutePath)
+            val newExif = ExifInterface(destination.absolutePath)
+
+            exifTags.forEach { tag ->
+                oldExif.getAttribute(tag)?.let { value ->
+                    newExif.setAttribute(tag, value)
+                }
+            }
+            newExif.saveAttributes()
+        }
     }
 }

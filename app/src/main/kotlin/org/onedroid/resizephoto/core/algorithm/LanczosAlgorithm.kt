@@ -1,4 +1,4 @@
-package org.onedroid.resizephoto.core
+package org.onedroid.resizephoto.core.algorithm
 
 import android.graphics.Bitmap
 import android.graphics.Color
@@ -9,7 +9,6 @@ import kotlin.math.roundToInt
 import kotlin.math.sin
 
 object LanczosResizer {
-
     private const val A = 3
 
     private fun sinc(x: Double): Double {

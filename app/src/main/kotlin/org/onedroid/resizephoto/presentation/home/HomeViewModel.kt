@@ -87,10 +87,15 @@ class HomeViewModel(
         }
     }
 
+    fun clearAll() {
+        _state.update { HomeUiState() }
+    }
+
     fun resizeImage() {
         val currentImage = _state.value.actualImage ?: return
         val originalResolution = _state.value.originalResolution ?: return
         val useLanczos = _state.value.useLanczos
+        _state.update { it.copy(isResizing = true, message = null, processingTime = 0L) }
 
         when (_state.value.resizeMode) {
             ResizeMode.PERCENTAGE -> {
@@ -171,7 +176,8 @@ class HomeViewModel(
                     targetWidth = resolution.first.toString(),
                     targetHeight = resolution.second.toString(),
                     targetLongEdge = maxEdge.toString(),
-                    processingTime = 0L
+                    processingTime = 0L,
+                    isResizing = false
                 )
             }
         }
@@ -187,9 +193,10 @@ class HomeViewModel(
                  if (resized != null) {
                     handleResizedImage(file, resized!!, time)
                  }
+                 _state.update { it.copy(isResizing = false) }
              } catch (e: Exception) {
                  _state.update {
-                     it.copy(message = "Error resizing image: ${e.message}")
+                     it.copy(message = "Error resizing image: ${e.message}", isResizing = false)
                  }
              }
          }
@@ -205,9 +212,10 @@ class HomeViewModel(
                  if (resized != null) {
                      handleResizedImage(file, resized!!, time)
                  }
+                 _state.update { it.copy(isResizing = false) }
              } catch (e: Exception) {
                  _state.update {
-                     it.copy(message = "Error resizing image: ${e.message}")
+                     it.copy(message = "Error resizing image: ${e.message}", isResizing = false)
                  }
              }
          }
