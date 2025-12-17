@@ -1,6 +1,7 @@
 package org.onedroid.resizephoto.presentation.home
 
 import android.app.Application
+import org.onedroid.resizephoto.domain.model.ResizeAlgorithm
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -83,8 +84,12 @@ class HomeViewModel(
 
     fun setUseLanczos(use: Boolean) {
         _state.update {
-            it.copy(useLanczos = use)
+            it.copy(algorithm = if (use) ResizeAlgorithm.LANCZOS else ResizeAlgorithm.BITMAP_SCALING)
         }
+    }
+
+    fun setAlgorithm(algorithm: ResizeAlgorithm) {
+        _state.update { it.copy(algorithm = algorithm) }
     }
 
     fun clearAll() {
@@ -94,22 +99,26 @@ class HomeViewModel(
     fun resizeImage() {
         val currentImage = _state.value.actualImage ?: return
         val originalResolution = _state.value.originalResolution ?: return
-        val useLanczos = _state.value.useLanczos
+        val useLanczos = _state.value.algorithm == ResizeAlgorithm.LANCZOS
+
         _state.update { it.copy(isResizing = true, message = null, processingTime = 0L) }
 
         when (_state.value.resizeMode) {
+
             ResizeMode.PERCENTAGE -> {
-                resizeImage(currentImage, (_state.value.resolution * 100).toInt(), useLanczos)
+                resizeImage(currentImage, (_state.value.resolution * 100).toInt(), _state.value.algorithm)
             }
+
             ResizeMode.PIXELS -> {
                 val w = _state.value.targetWidth.toIntOrNull() ?: 0
                 val h = _state.value.targetHeight.toIntOrNull() ?: 0
                 if (w > 0 && h > 0) {
-                    resizeImage(currentImage, w, h, useLanczos)
+                    resizeImage(currentImage, w, h, _state.value.algorithm)
                 } else {
                     _state.update { it.copy(message = "Invalid dimensions") }
                 }
             }
+
             ResizeMode.LONG_EDGE -> {
                 val longEdge = _state.value.targetLongEdge.toIntOrNull() ?: 0
                 if (longEdge > 0) {
@@ -127,7 +136,7 @@ class HomeViewModel(
                         h = longEdge
                         w = (longEdge * aspectRatio).roundToInt()
                     }
-                    resizeImage(currentImage, w, h, useLanczos)
+                    resizeImage(currentImage, w, h, _state.value.algorithm)
                 } else {
                     _state.update { it.copy(message = "Invalid long edge size") }
                 }
@@ -183,15 +192,15 @@ class HomeViewModel(
         }
     }
 
-    private fun resizeImage(file: File, percentage: Int, useLanczos: Boolean) {
+    private fun resizeImage(file: File, percentage: Int, algorithm: ResizeAlgorithm) {
          viewModelScope.launch {
              try {
                  var resized: File? = null
                  val time = measureTimeMillis {
-                     resized = resizeImageUseCase(file, percentage, useLanczos)
+                     resized = resizeImageUseCase(file, percentage, algorithm)
                  }
                  if (resized != null) {
-                    handleResizedImage(file, resized!!, time)
+                    handleResizedImage(file, resized, time)
                  }
                  _state.update { it.copy(isResizing = false) }
              } catch (e: Exception) {
@@ -202,12 +211,12 @@ class HomeViewModel(
          }
     }
 
-    private fun resizeImage(file: File, width: Int, height: Int, useLanczos: Boolean) {
+    private fun resizeImage(file: File, width: Int, height: Int, algorithm: ResizeAlgorithm) {
          viewModelScope.launch {
              try {
                  var resized: File? = null
                  val time = measureTimeMillis {
-                    resized = resizeImageUseCase(file, width, height, useLanczos)
+                    resized = resizeImageUseCase(file, width, height, algorithm)
                  }
                  if (resized != null) {
                      handleResizedImage(file, resized!!, time)

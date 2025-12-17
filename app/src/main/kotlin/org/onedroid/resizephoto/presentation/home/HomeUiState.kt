@@ -1,5 +1,6 @@
 package org.onedroid.resizephoto.presentation.home
 
+import org.onedroid.resizephoto.domain.model.ResizeAlgorithm
 import java.io.File
 
 data class HomeUiState(
@@ -19,7 +20,7 @@ data class HomeUiState(
     val keepAspectRatio: Boolean = true,
     val resizeMode: ResizeMode = ResizeMode.PERCENTAGE,
     val targetLongEdge: String = "",
-    val useLanczos: Boolean = false,
+    val algorithm: ResizeAlgorithm = ResizeAlgorithm.BITMAP_SCALING,
     val processingTime: Long = 0L,
     val isResizing: Boolean = false
 )

@@ -40,22 +40,20 @@ import androidx.compose.material.icons.rounded.PhotoSizeSelectLarge
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -77,6 +75,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import coil3.compose.AsyncImage
+import org.onedroid.resizephoto.domain.model.ResizeAlgorithm
 import org.onedroid.resizephoto.presentation.home.component.CompareImage
 import java.util.Locale
 
@@ -121,6 +120,7 @@ fun HomeScreen(
                 .clip(RoundedCornerShape(16.dp))
                 .background(MaterialTheme.colorScheme.surfaceContainerHigh)
         ) {
+            var originalLoading by remember { mutableStateOf(true) }
             if (state.actualImage != null) {
                 if (state.resizedImage != null) {
                     CompareImage(
@@ -164,7 +164,10 @@ fun HomeScreen(
                         model = state.actualImage!!,
                         contentDescription = null,
                         contentScale = ContentScale.Fit,
-                        modifier = Modifier.fillMaxSize()
+                        modifier = Modifier.fillMaxSize(),
+                        onLoading = { originalLoading = true },
+                        onSuccess = { originalLoading = false },
+                        onError = { originalLoading = false }
                     )
 
                     if (state.originalExif != null) {
@@ -175,6 +178,17 @@ fun HomeScreen(
                             contentDescription = "Exif Info",
                             onClick = { showExifDialog = state.originalExif }
                         )
+                    }
+
+                    if (state.isResizing) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .align(Alignment.Center),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator()
+                        }
                     }
                 }
             } else {
@@ -292,7 +306,7 @@ fun HomeScreen(
                             ) {
                                 Spacer(Modifier.height(24.dp))
                                 Icon(
-                                    Icons.AutoMirrored.Rounded.ArrowForward,
+                                    Icons.AutoMirrored.Rounded.CompareArrows,
                                     contentDescription = "to",
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                                 )
@@ -326,7 +340,6 @@ fun HomeScreen(
                                         alignment = Alignment.End
                                     )
                                 }
-
                             }
                         } else {
                             Spacer(Modifier.weight(1f))
@@ -466,10 +479,24 @@ fun HomeScreen(
                     Column {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Checkbox(
-                                checked = state.useLanczos,
-                                onCheckedChange = { viewModel.setUseLanczos(it) }
+                                checked = state.algorithm == ResizeAlgorithm.BITMAP_SCALING,
+                                onCheckedChange = { viewModel.setAlgorithm(ResizeAlgorithm.BITMAP_SCALING) }
                             )
-                            Column(Modifier.clickable { viewModel.setUseLanczos(!state.useLanczos) }) {
+                            Column(Modifier.clickable { viewModel.setAlgorithm(ResizeAlgorithm.BITMAP_SCALING) }) {
+                                Text(
+                                    text = "Bitmap Scaling",
+                                )
+                            }
+                        }
+
+                        Spacer(Modifier.height(8.dp))
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(
+                                checked = state.algorithm == ResizeAlgorithm.LANCZOS,
+                                onCheckedChange = { viewModel.setAlgorithm(ResizeAlgorithm.LANCZOS) }
+                            )
+                            Column(Modifier.clickable { viewModel.setAlgorithm(ResizeAlgorithm.LANCZOS) }) {
                                 Text(
                                     text = "Lanczos algorithm",
                                 )

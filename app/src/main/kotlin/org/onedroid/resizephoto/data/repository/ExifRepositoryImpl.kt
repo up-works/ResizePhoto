@@ -49,10 +49,13 @@ class ExifRepositoryImpl : ExifRepository {
             val newExif = ExifInterface(destination.absolutePath)
 
             exifTags.forEach { tag ->
-                oldExif.getAttribute(tag)?.let { value ->
-                    newExif.setAttribute(tag, value)
+                if (tag != ExifInterface.TAG_ORIENTATION) {
+                    oldExif.getAttribute(tag)?.let { value ->
+                        newExif.setAttribute(tag, value)
+                    }
                 }
             }
+            newExif.setAttribute(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL.toString())
             newExif.saveAttributes()
         }
     }
