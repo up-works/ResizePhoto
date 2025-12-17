@@ -77,6 +77,15 @@ class ImageRepositoryImpl(private val context: Context) : ImageRepository {
                 ResizeAlgorithm.STB_CATMULL_ROM -> {
                     stbResizer.resize(sampledBitmap, width, height, StbImageResizer.Filter.CATMULL_ROM)
                 }
+                ResizeAlgorithm.STB_BOX -> {
+                    stbResizer.resize(sampledBitmap, width, height, StbImageResizer.Filter.BOX)
+                }
+                ResizeAlgorithm.STB_TRIANGLE -> {
+                    stbResizer.resize(sampledBitmap, width, height, StbImageResizer.Filter.TRIANGLE)
+                }
+                ResizeAlgorithm.STB_POINT_SAMPLE -> {
+                    stbResizer.resize(sampledBitmap, width, height, StbImageResizer.Filter.POINT_SAMPLE)
+                }
             } ?: throw IllegalStateException("STB resize failed")
 
             try {

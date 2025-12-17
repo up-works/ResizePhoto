@@ -546,6 +546,48 @@ fun HomeScreen(
 
                         Spacer(Modifier.height(8.dp))
 
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(
+                                checked = state.algorithm == ResizeAlgorithm.STB_BOX,
+                                onCheckedChange = { viewModel.setAlgorithm(ResizeAlgorithm.STB_BOX) }
+                            )
+                            Column(Modifier.clickable { viewModel.setAlgorithm(ResizeAlgorithm.STB_BOX) }) {
+                                Text(
+                                    text = "Box (STB)",
+                                )
+                            }
+                        }
+
+                        Spacer(Modifier.height(8.dp))
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(
+                                checked = state.algorithm == ResizeAlgorithm.STB_TRIANGLE,
+                                onCheckedChange = { viewModel.setAlgorithm(ResizeAlgorithm.STB_TRIANGLE) }
+                            )
+                            Column(Modifier.clickable { viewModel.setAlgorithm(ResizeAlgorithm.STB_TRIANGLE) }) {
+                                Text(
+                                    text = "Triangle (STB)",
+                                )
+                            }
+                        }
+
+                        Spacer(Modifier.height(8.dp))
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(
+                                checked = state.algorithm == ResizeAlgorithm.STB_POINT_SAMPLE,
+                                onCheckedChange = { viewModel.setAlgorithm(ResizeAlgorithm.STB_POINT_SAMPLE) }
+                            )
+                            Column(Modifier.clickable { viewModel.setAlgorithm(ResizeAlgorithm.STB_POINT_SAMPLE) }) {
+                                Text(
+                                    text = "Point Sample (STB)",
+                                )
+                            }
+                        }
+
+                        Spacer(Modifier.height(8.dp))
+
                         HorizontalDivider(
                             color = MaterialTheme.colorScheme.outlineVariant.copy(
                                 alpha = 0.5f

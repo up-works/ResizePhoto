@@ -3,6 +3,8 @@
 #include <android/bitmap.h>
 #include <android/log.h>
 #include <cstring>
+#include <thread>
+#include <vector>
 
 #define STB_IMAGE_RESIZE_IMPLEMENTATION
 #define STBIR_MALLOC(size, context) malloc(size)
@@ -61,19 +63,44 @@ Java_org_onedroid_resizephoto_core_algorithm_StbImageResizer_nativeResize(
     stbir_edge edge = STBIR_EDGE_CLAMP;
     stbir_filter filterType = static_cast<stbir_filter>(filter);
 
-    void* result = stbir_resize(
-            srcPixels, srcInfo.width, srcInfo.height, srcInfo.stride,
-            dstPixels, dstInfo.width, dstInfo.height, dstInfo.stride,
-            layout, datatype,
-            edge, filterType
-    );
+    STBIR_RESIZE resize;
+    stbir_resize_init(&resize, srcPixels, srcInfo.width, srcInfo.height, srcInfo.stride,
+                      dstPixels, dstInfo.width, dstInfo.height, dstInfo.stride,
+                      layout, datatype);
+    stbir_set_filters(&resize, filterType, filterType);
+    stbir_set_edgemodes(&resize, edge, edge);
+
+    int num_threads = std::thread::hardware_concurrency();
+    if (num_threads < 1) num_threads = 1;
+
+    // Build samplers and get actual split count
+    int split_count = stbir_build_samplers_with_splits(&resize, num_threads);
+
+    if (split_count > 1) {
+        std::vector<std::thread> threads;
+        threads.reserve(split_count);
+
+        for (int i = 0; i < split_count; ++i) {
+            threads.emplace_back([&resize, i]() {
+                stbir_resize_extended_split(&resize, i, 1);
+            });
+        }
+
+        for (auto& t : threads) {
+            t.join();
+        }
+    } else {
+        // Fallback to single thread if splitting failed or not needed
+        stbir_resize_extended_split(&resize, 0, 1);
+    }
+
+    stbir_free_samplers(&resize);
 
     // Unlock pixels
     AndroidBitmap_unlockPixels(env, srcBitmap);
     AndroidBitmap_unlockPixels(env, dstBitmap);
 
-    // result is dstPixels on success, NULL on failure
-    return (result != nullptr) ? JNI_TRUE : JNI_FALSE;
+    return JNI_TRUE;
 }
 
 
@@ -96,5 +123,20 @@ extern "C"
 JNIEXPORT jint JNICALL
 Java_org_onedroid_resizephoto_core_algorithm_StbImageResizer_getFilterCatmullRom(JNIEnv *env,jclass clazz) {
     return STBIR_FILTER_CATMULLROM;
+}
+extern "C"
+JNIEXPORT jint JNICALL
+Java_org_onedroid_resizephoto_core_algorithm_StbImageResizer_getFilterBox(JNIEnv *env,jclass clazz) {
+    return STBIR_FILTER_BOX;
+}
+extern "C"
+JNIEXPORT jint JNICALL
+Java_org_onedroid_resizephoto_core_algorithm_StbImageResizer_getFilterTriangle(JNIEnv *env,jclass clazz) {
+    return STBIR_FILTER_TRIANGLE;
+}
+extern "C"
+JNIEXPORT jint JNICALL
+Java_org_onedroid_resizephoto_core_algorithm_StbImageResizer_getFilterPointSample(JNIEnv *env,jclass clazz) {
+    return STBIR_FILTER_POINT_SAMPLE;
 }
 

@@ -9,7 +9,10 @@ class StbImageResizer {
         DEFAULT(getFilterDefault()),
         MITCHELL(getFilterMitchell()),
         CUBIC_BSPLINE(getFilterCubicBSpline()),
-        CATMULL_ROM(getFilterCatmullRom())
+        CATMULL_ROM(getFilterCatmullRom()),
+        BOX(getFilterBox()),
+        TRIANGLE(getFilterTriangle()),
+        POINT_SAMPLE(getFilterPointSample())
     }
 
     companion object {
@@ -28,6 +31,15 @@ class StbImageResizer {
 
         @JvmStatic
         private external fun getFilterCatmullRom(): Int
+
+        @JvmStatic
+        private external fun getFilterBox(): Int
+
+        @JvmStatic
+        private external fun getFilterTriangle(): Int
+
+        @JvmStatic
+        private external fun getFilterPointSample(): Int
     }
 
     /**
