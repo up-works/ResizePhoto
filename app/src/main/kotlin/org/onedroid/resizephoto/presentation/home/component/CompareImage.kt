@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import coil3.ImageLoader
 import coil3.compose.AsyncImage
+import coil3.size.Size
 import kotlin.ranges.coerceIn
 
 @Composable
@@ -149,6 +150,7 @@ fun CompareImage(
         val afterModel: Any = if (afterImage is java.io.File) {
             ImageRequest.Builder(context)
                 .data(afterImage)
+                .size(coil3.size.Size.ORIGINAL)
                 .memoryCacheKey("after-${afterImage.absolutePath}-${afterImage.length()}-${afterImage.lastModified()}")
                 .build()
         } else afterImage
@@ -188,6 +190,7 @@ fun CompareImage(
             val beforeModel: Any = if (beforeImage is java.io.File) {
                 ImageRequest.Builder(context)
                     .data(beforeImage)
+                    .size(coil3.size.Size.ORIGINAL)
                     .memoryCacheKey("before-${beforeImage.absolutePath}-${beforeImage.length()}-${beforeImage.lastModified()}")
                     .build()
             } else beforeImage
