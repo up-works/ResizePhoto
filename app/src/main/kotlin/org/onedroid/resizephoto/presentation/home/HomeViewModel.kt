@@ -106,7 +106,7 @@ class HomeViewModel(
         when (_state.value.resizeMode) {
 
             ResizeMode.PERCENTAGE -> {
-                resizeImage(currentImage, (_state.value.resolution * 100).toInt(), _state.value.algorithm)
+                resizeImage(currentImage, (_state.value.resolution * 100).roundToInt(), _state.value.algorithm)
             }
 
             ResizeMode.PIXELS -> {

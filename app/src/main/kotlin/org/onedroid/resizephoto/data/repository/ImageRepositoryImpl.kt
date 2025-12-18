@@ -15,6 +15,7 @@ import org.onedroid.resizephoto.domain.repository.ImageRepository
 import java.io.File
 import java.io.FileOutputStream
 import kotlin.math.roundToInt
+import androidx.core.graphics.scale
 
 class ImageRepositoryImpl(private val context: Context) : ImageRepository {
 
@@ -70,6 +71,9 @@ class ImageRepositoryImpl(private val context: Context) : ImageRepository {
                 }
                 ResizeAlgorithm.STB_MITCHELL -> {
                     stbResizer.resize(sampledBitmap, width, height, StbImageResizer.Filter.MITCHELL)
+                }
+                ResizeAlgorithm.STB_DEFAULT -> {
+                    stbResizer.resize(sampledBitmap, width, height, StbImageResizer.Filter.DEFAULT)
                 }
                 ResizeAlgorithm.STB_CUBIC_BSPLINE -> {
                     stbResizer.resize(sampledBitmap, width, height, StbImageResizer.Filter.CUBIC_BSPLINE)
@@ -242,7 +246,7 @@ class ImageRepositoryImpl(private val context: Context) : ImageRepository {
         if (src.width == width && src.height == height) {
             return src
         }
-        return Bitmap.createScaledBitmap(src, width, height, true)
+        return src.scale(width, height)
     }
 
     /**
@@ -274,7 +278,7 @@ class ImageRepositoryImpl(private val context: Context) : ImageRepository {
             val quality = if (format == Bitmap.CompressFormat.PNG) {
                 100 // PNG is lossless, quality param ignored
             } else {
-                95 // High quality for JPEG/WebP
+                100 // High quality for JPEG/WebP
             }
             bitmap.compress(format, quality, out)
             out.flush()

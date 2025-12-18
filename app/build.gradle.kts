@@ -75,4 +75,7 @@ dependencies {
 
     //stb_image_resize
     implementation(project(":stb_image_resize"))
+
+    //avif_coder
+    //implementation("com.github.awxkee:avif-coder:2.1.4")
 }

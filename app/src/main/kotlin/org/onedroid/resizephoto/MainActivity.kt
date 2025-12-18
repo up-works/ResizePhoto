@@ -26,11 +26,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import org.koin.androidx.compose.koinViewModel
 import org.onedroid.resizephoto.presentation.home.HomeScreen
+import org.onedroid.resizephoto.presentation.home.HomeUiState
 import org.onedroid.resizephoto.presentation.home.HomeViewModel
 import org.onedroid.resizephoto.presentation.theme.ResizePhotoTheme
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
+import kotlin.math.roundToInt
 
 class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalMaterial3Api::class)
@@ -65,7 +67,8 @@ class MainActivity : ComponentActivity() {
                                     onClick = {
                                         saveToImageCompressorFolder(
                                             this@MainActivity,
-                                            state.resizedImage!!
+                                            state.resizedImage!!,
+                                            state
                                         )
                                     }) {
                                     Icon(
@@ -87,7 +90,11 @@ class MainActivity : ComponentActivity() {
     }
 
 
-    private fun saveToImageCompressorFolder(context: android.content.Context, file: File) {
+    private fun saveToImageCompressorFolder(
+        context: android.content.Context,
+        file: File,
+        state: HomeUiState
+    ) {
         val folderName = "Image Resize"
         val extension = file.extension.ifEmpty { "jpg" }
         val mime = when (extension.lowercase()) {
@@ -95,7 +102,29 @@ class MainActivity : ComponentActivity() {
             "webp" -> "image/webp"
             else -> "image/jpeg"
         }
-        val name = "IMG_${System.currentTimeMillis()}.$extension"
+        val percentage = if (state.originalResolution != null && state.resizedResolution != null) {
+            val (ow, oh) = state.originalResolution!!
+            val (rw, rh) = state.resizedResolution!!
+            val origEdge = maxOf(ow, oh)
+            val resizedEdge = maxOf(rw, rh)
+            ((resizedEdge.toFloat() / origEdge.toFloat()) * 100f).roundToInt()
+        } else {
+            (state.resolution * 100f).roundToInt()
+        }
+
+        val formattedSize = if (state.resizedSize != null) {
+            val size = state.resizedSize!!
+            val kb = size / 1024.0
+            val mb = kb / 1024.0
+            when {
+                mb >= 1 -> String.format(java.util.Locale.US, "%.2fMB", mb)
+                kb >= 1 -> String.format(java.util.Locale.US, "%.2fKB", kb)
+                else -> "${size}B"
+            }
+        } else {
+            "0B"
+        }
+        val name = "${percentage}%_${state.algorithm.name}_${formattedSize}_${state.processingTime}ms.$extension"
 
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {

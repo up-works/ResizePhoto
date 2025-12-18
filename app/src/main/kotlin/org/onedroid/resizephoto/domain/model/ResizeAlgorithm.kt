@@ -4,6 +4,7 @@ enum class ResizeAlgorithm {
     BITMAP_SCALING,
     LANCZOS,
     STB_MITCHELL,
+    STB_DEFAULT,
     STB_CUBIC_BSPLINE,
     STB_CATMULL_ROM,
     STB_BOX,

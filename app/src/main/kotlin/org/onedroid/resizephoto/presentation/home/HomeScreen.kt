@@ -77,6 +77,7 @@ import coil3.compose.AsyncImage
 import org.onedroid.resizephoto.domain.model.ResizeAlgorithm
 import org.onedroid.resizephoto.presentation.home.component.CompareImage
 import java.util.Locale
+import kotlin.math.roundToInt
 
 @Composable
 fun HomeScreen(
@@ -412,7 +413,7 @@ fun HomeScreen(
                             )
                             Spacer(Modifier.width(8.dp))
                             Text(
-                                text = "${(state.resolution * 100).toInt()}%",
+                                text = "${(state.resolution * 100f).roundToInt()}%",
                                 style = MaterialTheme.typography.bodyMedium
                             )
                         }
