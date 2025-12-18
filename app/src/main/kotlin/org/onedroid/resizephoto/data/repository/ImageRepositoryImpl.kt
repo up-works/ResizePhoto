@@ -278,7 +278,7 @@ class ImageRepositoryImpl(private val context: Context) : ImageRepository {
             val quality = if (format == Bitmap.CompressFormat.PNG) {
                 100 // PNG is lossless, quality param ignored
             } else {
-                100 // High quality for JPEG/WebP
+                95 // High quality for JPEG/WebP
             }
             bitmap.compress(format, quality, out)
             out.flush()
