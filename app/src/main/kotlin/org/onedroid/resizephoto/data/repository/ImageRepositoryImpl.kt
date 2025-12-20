@@ -90,12 +90,13 @@ class ImageRepositoryImpl(private val context: Context) : ImageRepository {
                 ResizeAlgorithm.STB_POINT_SAMPLE -> {
                     stbResizer.resize(sampledBitmap, width, height, StbImageResizer.Filter.POINT_SAMPLE)
                 }
-            } ?: throw IllegalStateException("STB resize failed")
+            } ?: throw IllegalStateException("Resize failed")
 
             try {
-                // Save to file
+                // Save to file with EXIF data preserved
                 return@withContext saveBitmap(resizedBitmap, imageFile)
             } finally {
+                // Only recycle if it's a different bitmap
                 if (resizedBitmap !== sampledBitmap && !resizedBitmap.isRecycled) {
                     resizedBitmap.recycle()
                 }
@@ -115,8 +116,8 @@ class ImageRepositoryImpl(private val context: Context) : ImageRepository {
     private fun decodeBounds(file: File): ImageBounds {
         val options = BitmapFactory.Options().apply {
             inJustDecodeBounds = true
-            BitmapFactory.decodeFile(file.absolutePath, this)
         }
+        BitmapFactory.decodeFile(file.absolutePath, options)
         return ImageBounds(options.outWidth, options.outHeight)
     }
 
@@ -146,7 +147,6 @@ class ImageRepositoryImpl(private val context: Context) : ImageRepository {
             ExifInterface.ORIENTATION_TRANSVERSE -> {
                 ImageBounds(bounds.height, bounds.width) // Swapped!
             }
-
             else -> bounds
         }
     }
@@ -163,7 +163,7 @@ class ImageRepositoryImpl(private val context: Context) : ImageRepository {
     ): Int {
         var sampleSize = 1
 
-        // Don't subsample if upscaling
+        // Don't subsample if upscaling or already close to target
         if (srcWidth <= targetWidth && srcHeight <= targetHeight) {
             return 1
         }
@@ -186,7 +186,7 @@ class ImageRepositoryImpl(private val context: Context) : ImageRepository {
         val options = BitmapFactory.Options().apply {
             inSampleSize = sampleSize
             inPreferredConfig = Bitmap.Config.ARGB_8888
-            inMutable = false
+            inMutable = false // STB/Lanczos will create new bitmap anyway
         }
 
         val bitmap = BitmapFactory.decodeFile(file.absolutePath, options)
@@ -211,6 +211,12 @@ class ImageRepositoryImpl(private val context: Context) : ImageRepository {
             ExifInterface.ORIENTATION_NORMAL
         )
 
+        // Return early if no rotation needed
+        if (orientation == ExifInterface.ORIENTATION_NORMAL ||
+            orientation == ExifInterface.ORIENTATION_UNDEFINED) {
+            return bitmap
+        }
+
         val matrix = Matrix()
         when (orientation) {
             ExifInterface.ORIENTATION_ROTATE_90 -> matrix.postRotate(90f)
@@ -222,20 +228,26 @@ class ImageRepositoryImpl(private val context: Context) : ImageRepository {
                 matrix.postRotate(90f)
                 matrix.postScale(-1f, 1f)
             }
-
             ExifInterface.ORIENTATION_TRANSVERSE -> {
                 matrix.postRotate(270f)
                 matrix.postScale(-1f, 1f)
             }
-
-            else -> return bitmap // No transformation needed
+            else -> return bitmap // Should never reach here
         }
 
-        val rotated = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
-        if (rotated !== bitmap && !bitmap.isRecycled) {
-            bitmap.recycle()
+        return try {
+            val rotated = Bitmap.createBitmap(
+                bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true
+            )
+            // Only recycle if a new bitmap was created
+            if (rotated !== bitmap && !bitmap.isRecycled) {
+                bitmap.recycle()
+            }
+            rotated
+        } catch (e: OutOfMemoryError) {
+            // If rotation fails due to memory, return original
+            bitmap
         }
-        return rotated
     }
 
     /**
@@ -250,7 +262,7 @@ class ImageRepositoryImpl(private val context: Context) : ImageRepository {
     }
 
     /**
-     * Save bitmap to file with optimal compression
+     * Save bitmap to file with optimal compression and EXIF preservation
      */
     private fun saveBitmap(bitmap: Bitmap, originalFile: File): File {
         // Determine format from original file
@@ -262,7 +274,6 @@ class ImageRepositoryImpl(private val context: Context) : ImageRepository {
                 @Suppress("DEPRECATION")
                 Bitmap.CompressFormat.WEBP
             }
-
             else -> Bitmap.CompressFormat.JPEG
         }
 
@@ -278,13 +289,69 @@ class ImageRepositoryImpl(private val context: Context) : ImageRepository {
             val quality = if (format == Bitmap.CompressFormat.PNG) {
                 100 // PNG is lossless, quality param ignored
             } else {
-                95 // High quality for JPEG/WebP
+                100 // High quality for JPEG/WebP
             }
             bitmap.compress(format, quality, out)
             out.flush()
         }
 
+        // Preserve EXIF data (important for photos!)
+        copyExifData(originalFile, outputFile)
+
         return outputFile
     }
 
+    /**
+     * Copy EXIF metadata from original to resized image
+     * CRITICAL: Preserves GPS, camera info, date taken, etc.
+     */
+    private fun copyExifData(sourceFile: File, destFile: File) {
+        try {
+            val sourceExif = ExifInterface(sourceFile.absolutePath)
+            val destExif = ExifInterface(destFile.absolutePath)
+
+            // List of EXIF tags to preserve
+            val tags = listOf(
+                ExifInterface.TAG_DATETIME,
+                ExifInterface.TAG_DATETIME_DIGITIZED,
+                ExifInterface.TAG_DATETIME_ORIGINAL,
+                ExifInterface.TAG_GPS_LATITUDE,
+                ExifInterface.TAG_GPS_LATITUDE_REF,
+                ExifInterface.TAG_GPS_LONGITUDE,
+                ExifInterface.TAG_GPS_LONGITUDE_REF,
+                ExifInterface.TAG_GPS_ALTITUDE,
+                ExifInterface.TAG_GPS_ALTITUDE_REF,
+                ExifInterface.TAG_MAKE,
+                ExifInterface.TAG_MODEL,
+                ExifInterface.TAG_FLASH,
+                ExifInterface.TAG_FOCAL_LENGTH,
+                ExifInterface.TAG_WHITE_BALANCE,
+                ExifInterface.TAG_EXPOSURE_TIME,
+                ExifInterface.TAG_APERTURE_VALUE,
+                ExifInterface.TAG_ISO_SPEED,
+                ExifInterface.TAG_ARTIST,
+                ExifInterface.TAG_COPYRIGHT,
+                ExifInterface.TAG_SOFTWARE
+            )
+
+            // Copy each tag if it exists
+            tags.forEach { tag ->
+                sourceExif.getAttribute(tag)?.let { value ->
+                    destExif.setAttribute(tag, value)
+                }
+            }
+
+            // Reset orientation to NORMAL since we already applied rotation
+            destExif.setAttribute(
+                ExifInterface.TAG_ORIENTATION,
+                ExifInterface.ORIENTATION_NORMAL.toString()
+            )
+
+            // Save the EXIF data
+            destExif.saveAttributes()
+        } catch (e: Exception) {
+            // Log but don't fail - EXIF preservation is nice-to-have
+            android.util.Log.w("ImageRepository", "Failed to copy EXIF data", e)
+        }
+    }
 }

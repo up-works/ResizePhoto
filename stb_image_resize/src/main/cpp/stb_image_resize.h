@@ -2952,9 +2952,9 @@ static float stbir__filter_mitchell(float x, float s, void * user_data)
   if ( x < 0.0f ) x = -x;
 
   if (x < 1.0f)
-    return (16.0f + x*x*(21.0f * x - 36.0f))/18.0f;
+    return (8.0f/9.0f) + x*x*((7.0f/6.0f) * x - 2.0f);
   else if (x < 2.0f)
-    return (32.0f + x*(-60.0f + x*(36.0f - 7.0f*x)))/18.0f;
+    return (16.0f/9.0f) + x*((-10.0f/3.0f) + x*(2.0f - (7.0f/18.0f)*x));
 
   return (0.0f);
 }
